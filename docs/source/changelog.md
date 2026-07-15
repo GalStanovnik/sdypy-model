@@ -29,6 +29,13 @@ on [Keep a Changelog](https://keepachangelog.com/), and the project follows
   re-solving across field evaluations.
 - The `tqdm` progress bar auto-detects the runtime environment
   (notebook vs. terminal).
+- Burton–Miller coupling parameter `alpha_bm` now defaults to `None`, meaning the
+  frequency-dependent $\alpha = i/k$ (Kirkup's operator-balancing choice), resolved
+  from the wavenumber at each solve so it stays correct across a `set_frequency`
+  sweep. Previously it defaulted to a constant `1j`, which over-weights the
+  hypersingular operator as the frequency rises (≈ 25 % far-field error on the
+  validation sphere vs. several-times-smaller with `i/k`). Pass an explicit complex
+  value to recover the old constant-$\alpha$ behaviour.
 
 ### Fixed
 - Selecting Timoshenko beam theory (`"Timoshenko"` → `"T"`).

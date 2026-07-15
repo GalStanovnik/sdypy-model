@@ -204,9 +204,30 @@ prob = AcousticExternalProblem(
     boundary_condition=vn, boundary_condition_type="Neumann",
     frequency=FREQ,
     use_burton_miller=True,     # combined formulation
-    alpha_bm=1j,                # coupling parameter (default 1j)
+    # alpha_bm=None (default) → α = i/k, resolved per frequency (see below)
 )
 ```
+
+### The coupling parameter $\alpha$
+
+By default (`alpha_bm=None`) the solver uses the **frequency-dependent**
+$\alpha = i/k$, where $k = \omega/c_0$ is the wavenumber. This is the value
+Kirkup recommends (*The BEM in Acoustics*, §4.3.1 / §5.5.1): the hypersingular
+operator $N$ grows one power of $k$ faster than the other operators in the
+combined equation $[(D-C) + \alpha N]\,\phi = [S + \alpha (C+K')]\,q$, so a
+weighting $\alpha \propto 1/k$ keeps the two sides in balance *whatever the
+value of $k$*. The imaginary factor is the part that actually restores
+uniqueness — Burton & Miller (1971) prove any $\alpha$ with $\mathrm{Im}(\alpha)
+\neq 0$ suffices for that, so the $1/k$ magnitude is purely about accuracy and
+conditioning.
+
+The difference is not academic: a **constant** $\alpha = 1j$ lets $N$ dominate
+as the frequency rises and drifts to a roughly frequency-independent far-field
+error (about $-25\%$ on the validation sphere across `500 Hz`–`3 kHz`), whereas
+the default $i/k$ stays several times closer. Pass an explicit complex value
+(e.g. `alpha_bm=1j`) only to reproduce older constant-$\alpha$ results; it is
+resolved once at construction, so it does **not** track a `set_frequency` sweep,
+while the `None` default does.
 
 ```{important}
 Burton–Miller is a tool for **robustness near the spurious resonance
@@ -214,23 +235,24 @@ frequencies**, not a general accuracy upgrade. It assembles an extra
 (hypersingular) operator and, **away from** those frequencies, is often
 **less accurate** than the plain direct solve. For the pulsating sphere at
 500 Hz (well clear of any spurious frequency, `res = 30`) the direct
-formulation gives a ≈ 5 % surface-pressure error, while Burton–Miller gives
-≈ 17 %:
+formulation gives a ≈ 6 % surface-pressure error, while Burton–Miller with the
+default $\alpha = i/k$ gives ≈ 10 % (the old constant $\alpha = 1j$ gave ≈ 17 %):
 
 | Formulation | `use_burton_miller` | Surface-pressure error @ 500 Hz |
 |---|---|---|
-| Direct      | `False` | ≈ 5 %  |
-| Burton–Miller | `True` | ≈ 17 % |
+| Direct              | `False` | ≈ 6 %  |
+| Burton–Miller ($i/k$) | `True` | ≈ 10 % |
+| Burton–Miller (constant $1j$) | `True` | ≈ 17 % |
 
 **Near an internal resonance the roles reverse.** At $ka = \pi$ (the first
 fictitious eigenfrequency of the sphere, ≈ 1143 Hz for $a = 0.15$ m) the direct
 formulation is polluted and **does not converge** under mesh refinement, while
-Burton–Miller converges normally:
+Burton–Miller converges normally (default $\alpha = i/k$):
 
 | Mesh (`res`) | Direct error | Burton–Miller error |
 |---|---|---|
-| 20 | ≈ 90 % | ≈ 34 % |
-| 30 | ≈ 93 % | ≈ 21 % |
+| 20 | ≈ 90 % | ≈ 31 % |
+| 30 | ≈ 93 % | ≈ 19 % |
 | 40 | ≈ 95 % | ≈ 14 % |
 
 **Rule of thumb:** leave `use_burton_miller=False` for ordinary radiation

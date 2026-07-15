@@ -111,6 +111,60 @@ def test_pulsating_sphere_quantitative_accuracy():
     assert rel_err < 0.10, f"Field pressure rel. error too high: {rel_err:.1%}"
 
 
+def test_burton_miller_alpha_defaults_to_i_over_k():
+    """The default coupling parameter is α = i/k (Kirkup's operator-balancing choice).
+
+    Passing ``alpha_bm=None`` (the default) must give the *same* boundary solution as
+    passing the explicit ``i/k`` for that frequency, and a *different* one from a constant
+    ``1j`` — otherwise the frequency-dependent default is not actually being applied.
+    """
+    sphere = _small_sphere(0.15)
+    vn = 0.01 * np.ones(sphere.n_points, dtype=np.float64)
+    freq, c0 = 500.0, 343.0
+    k = 2 * np.pi * freq / c0
+
+    def solve(alpha):
+        prob = AcousticExternalProblem(
+            mesh=sphere, rho=1.225, c0=c0,
+            boundary_condition=vn, boundary_condition_type="Neumann",
+            frequency=freq, use_burton_miller=True, alpha_bm=alpha,
+        )
+        return prob.solve_problem(verbose=False)[0]
+
+    phi_default = solve(None)
+    assert np.all(np.isfinite(phi_default))
+    assert np.allclose(phi_default, solve(1j / k))          # None resolves to i/k
+    assert not np.allclose(phi_default, solve(1j))          # ... not the constant 1j
+
+
+def test_burton_miller_default_alpha_tracks_frequency_in_a_sweep():
+    """α = i/k is resolved per solve, so a set_frequency sweep re-derives it from k.
+
+    Reusing one problem across frequencies must match building a fresh problem at each —
+    if α were frozen at construction the swept high-frequency solve would differ.
+    """
+    sphere = _small_sphere(0.15)
+    vn = 0.01 * np.ones(sphere.n_points, dtype=np.float64)
+
+    swept = AcousticExternalProblem(
+        mesh=sphere, rho=1.225, c0=343.0,
+        boundary_condition=vn, boundary_condition_type="Neumann",
+        frequency=500.0, use_burton_miller=True,   # alpha_bm=None (i/k) by default
+    )
+    swept.solve_problem(verbose=False)
+    swept.set_frequency(1500.0)
+    phi_swept = swept.solve_problem(verbose=False)[0]
+
+    fresh = AcousticExternalProblem(
+        mesh=sphere, rho=1.225, c0=343.0,
+        boundary_condition=vn, boundary_condition_type="Neumann",
+        frequency=1500.0, use_burton_miller=True,
+    )
+    phi_fresh = fresh.solve_problem(verbose=False)[0]
+
+    assert np.allclose(phi_swept, phi_fresh)
+
+
 def test_set_frequency():
     """Changing frequency should reset the assembled-matrices flag."""
     sphere = _small_sphere(0.15)

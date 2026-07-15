@@ -155,7 +155,7 @@ class BEMSolver:
     def solve_burton_miller(self,
                             matrices: dict[str, np.ndarray] | None = None,
                             jump_coeff: np.ndarray | None = None,
-                            alpha: complex = 1j,
+                            alpha: complex | None = None,
                             verbose: bool = True,
                             ) -> np.ndarray:
         """
@@ -186,9 +186,18 @@ class BEMSolver:
             matrices (dict[str, np.ndarray] | None): Pre-assembled operator 
                 matrices {"S","D","Kp","NReg"}. If None, assembles them.
             jump_coeff (np.ndarray | None): Jump coefficients at collocation
-                points. If None, uses mesh's jump_coefficients or defaults 
+                points. If None, uses mesh's jump_coefficients or defaults
                 to 0.5.
-            alpha (complex): Coupling parameter α. Defaults to 1j.
+            alpha (complex | None): Coupling parameter α. If None (default),
+                the frequency-dependent value α = i/k is used, where k is the
+                wavenumber. This keeps the hypersingular operator N in balance
+                with the (D - C) term across frequency: N scales as O(k) more
+                than the other operators, and α ∝ 1/k cancels that so neither
+                side of the combined equation dominates (Kirkup, *The BEM in
+                Acoustics*, §4.3.1 / §5.5.1). The imaginary factor is what
+                restores uniqueness at the interior eigenfrequencies (Burton &
+                Miller, 1971 — any α with Im(α) ≠ 0 suffices for that). Pass an
+                explicit complex value to override (e.g. a constant 1j).
             verbose (bool): Show progress information.
 
         Returns:
@@ -197,8 +206,12 @@ class BEMSolver:
         """
 
         if matrices is None:
-            matrices = self.assemble_matrices(ops=("S","D","Kp","NReg"), 
+            matrices = self.assemble_matrices(ops=("S","D","Kp","NReg"),
                                              verbose=verbose)
+
+        # α = i/k by default (Kirkup's operator-balancing choice); k is the wavenumber.
+        if alpha is None:
+            alpha = 1j / self.mesh.k
 
         # Determine boundary condition type
         if self.mesh.Dirichlet_BC is not None:

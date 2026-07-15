@@ -57,8 +57,19 @@ class AcousticExternalProblem:
         If ``True`` (default) solves the Burton–Miller combined formulation
         to suppress spurious internal resonances.
     alpha_bm : complex, optional
-        Coupling parameter for the Burton–Miller formulation.
-        Default is ``1j``.
+        Coupling parameter for the Burton–Miller formulation.  If ``None``
+        (default), the frequency-dependent value ``α = i/k`` is used at solve
+        time, where ``k`` is the wavenumber.  This is Kirkup's operator-balancing
+        choice (*The BEM in Acoustics*, §4.3.1 / §5.5.1): the hypersingular
+        operator ``N`` scales as ``O(k)`` more strongly than the ``(D - C)``
+        term, and ``α ∝ 1/k`` cancels that imbalance so neither side of the
+        combined equation dominates as the frequency changes — a constant ``α``
+        instead lets ``N`` take over at higher frequencies and loses accuracy.
+        The imaginary factor is what restores uniqueness at the body's interior
+        eigenfrequencies (Burton & Miller, 1971; any ``α`` with ``Im(α) ≠ 0``
+        suffices for uniqueness alone).  Pass an explicit complex value — e.g.
+        ``1j`` — to override with a constant.  Resolved per frequency, so it
+        stays correct across a :meth:`set_frequency` sweep.
     quad_order : int, optional
         Order of the standard triangle quadrature rule (1, 3, or 7).
         Default is 3.
@@ -111,7 +122,7 @@ class AcousticExternalProblem:
         frequency: float | None = None,
         assembler_type: str = "continuous",
         use_burton_miller: bool = True,
-        alpha_bm: complex = 1j,
+        alpha_bm: complex | None = None,
         quad_order: int = 3,
         near_threshold: float = 2.0,
     ) -> None:
